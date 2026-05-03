@@ -1032,7 +1032,7 @@
       <h1>Elegí una <span>raspadita</span></h1>
 
       <p class="subtitle">
-        Tocá un número, descubrí tu premio y reclamalo únicamente por webchat.
+        Tocá un número, descubrí tu premio y reclamalo únicamente por webchat enviando captura.
       </p>
 
       <div class="scratch-grid" id="scratchGrid">
@@ -1092,7 +1092,7 @@
       <button class="cta" id="abrirWebchat">Reclamar por Webchat</button>
 
       <p class="note">
-        Más cargás por webchat, más chances tenés. Beneficio sujeto a disponibilidad de atención WINS.
+        Para reclamar, mandá captura del premio que te salió por webchat. Beneficio sujeto a disponibilidad de atención WINS.
       </p>
     </section>
 
@@ -1127,12 +1127,12 @@
 
         <div class="guide-step">
           <div class="guide-step-number">3</div>
-          <div>Escribí: <b>QUIERO MI RASPADITA</b>.</div>
+          <div>Mandanos <b>captura del premio</b> que te salió para reclamarlo.</div>
         </div>
       </div>
 
       <p class="guide-mini-note">
-        Tocá directamente el globo señalado abajo a la derecha.
+        Tocá el globo señalado abajo a la derecha y enviá la captura de tu premio.
       </p>
     </div>
   </section>
@@ -1146,6 +1146,8 @@
   <div class="webchat-glow" id="webchatGlow"></div>
 
   <script>
+    const STORAGE_KEY = "wins_raspadita_elegida_v1";
+
     const premiosRaspaditas = [
       {
         prize: "10% EXTRA",
@@ -1196,13 +1198,33 @@
       return copia;
     }
 
+    function guardarEleccion(data) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+
+    function leerEleccionGuardada() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY));
+      } catch (e) {
+        return null;
+      }
+    }
+
     const scratchCards = document.querySelectorAll(".scratch-card");
 
-    function cargarPremiosAleatorios() {
-      const premiosMezclados = mezclarPremios(premiosRaspaditas);
+    function cargarPremios() {
+      const eleccionGuardada = leerEleccionGuardada();
+
+      let premiosParaMostrar;
+
+      if (eleccionGuardada && Array.isArray(eleccionGuardada.premios)) {
+        premiosParaMostrar = eleccionGuardada.premios;
+      } else {
+        premiosParaMostrar = mezclarPremios(premiosRaspaditas);
+      }
 
       scratchCards.forEach(function(card, index) {
-        const premio = premiosMezclados[index];
+        const premio = premiosParaMostrar[index];
         const hidden = card.querySelector(".scratch-hidden");
 
         card.setAttribute("data-prize", premio.prize);
@@ -1211,9 +1233,11 @@
           hidden.innerHTML = premio.html;
         }
       });
+
+      return premiosParaMostrar;
     }
 
-    cargarPremiosAleatorios();
+    const premiosActuales = cargarPremios();
 
     const resultBox = document.getElementById("resultBox");
     const resultTitle = document.getElementById("resultTitle");
@@ -1221,7 +1245,9 @@
 
     let yaEligio = false;
 
-    function revelarTodos(cardElegida, numeroElegido, premioElegido) {
+    function revelarTodos(cardElegida, numeroElegido, premioElegido, desdeMemoria) {
+      yaEligio = true;
+
       scratchCards.forEach(function(item) {
         item.classList.add("mostrar-todos");
         item.classList.add("bloqueada");
@@ -1235,9 +1261,24 @@
       });
 
       resultBox.classList.add("active");
-      resultTitle.textContent = "Tu raspadita fue la número " + numeroElegido;
+      resultTitle.textContent = desdeMemoria
+        ? "Ya elegiste la raspadita " + numeroElegido
+        : "Tu raspadita fue la número " + numeroElegido;
+
       resultText.innerHTML =
-        "Tu premio es <b>" + premioElegido + "</b>. También te mostramos los demás premios, pero solo queda válido el que elegiste.";
+        "Tu premio es <b>" + premioElegido + "</b>. Sacá captura de esta pantalla y mandala por webchat para reclamarlo. Solo queda válido el premio que ya elegiste.";
+    }
+
+    const eleccionGuardadaInicial = leerEleccionGuardada();
+
+    if (
+      eleccionGuardadaInicial &&
+      typeof eleccionGuardadaInicial.numero === "number" &&
+      eleccionGuardadaInicial.numero >= 1 &&
+      eleccionGuardadaInicial.numero <= scratchCards.length
+    ) {
+      const cardGuardada = scratchCards[eleccionGuardadaInicial.numero - 1];
+      revelarTodos(cardGuardada, eleccionGuardadaInicial.numero, eleccionGuardadaInicial.premio, true);
     }
 
     scratchCards.forEach(function(card, index) {
@@ -1249,6 +1290,13 @@
         const prize = card.getAttribute("data-prize");
         const number = index + 1;
 
+        guardarEleccion({
+          numero: number,
+          premio: prize,
+          premios: premiosActuales,
+          fecha: new Date().toISOString()
+        });
+
         card.classList.add("raspando");
 
         resultBox.classList.add("active");
@@ -1257,7 +1305,7 @@
 
         setTimeout(function() {
           card.classList.remove("raspando");
-          revelarTodos(card, number, prize);
+          revelarTodos(card, number, prize, false);
         }, 1050);
       });
     });
